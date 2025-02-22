@@ -26,3 +26,6 @@ dist-ssr
 
 # Ignore the Experimental UI/Animation Files
 src/components/ui/inkfishTransition.tsx
+
+# Ignore virtual environment
+venv/
