@@ -5,7 +5,7 @@ import { PianoRoll } from "../components/pianoRoll";
 import { WaveForm } from "../components/waveForm";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/ui/resizable";
 import { useStore } from "../lib/store";
-import { TestFFT } from "../components/testFFT";
+import { FrequencyGraph } from "./frequencyGraph";
 import { useSearch } from "wouter";
 import { FFTGraph } from "./FFTGraph";
 
@@ -31,17 +31,19 @@ const Transcription = () => {
   }, [searchString]);
 
   return (
-    <div className="relative z-10 flex flex-col m-0 p-0 w-full h-full">
+    <div className="z-10 relative flex flex-col m-0 p-0 w-full h-full">
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel defaultSize={40} minSize={20} className="max-w-full">
           <WaveForm audioRef={audioRef} audioContextRef={audioContextRef} />
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={30} minSize={20}>
-          <TestFFT audioRef={audioRef} audioContextRef={audioContextRef} />
-          {/* <FFTGraph audioRef={audioRef} audioContextRef={audioContextRef} /> */}
+          <FrequencyGraph audioRef={audioRef} audioContextRef={audioContextRef} />
         </ResizablePanel>
         <ResizableHandle withHandle />
+        {/* <ResizablePanel defaultSize={30} minSize={20}>
+          <FFTGraph audioRef={audioRef} audioContextRef={audioContextRef} />
+        </ResizablePanel> */}
         <ResizablePanel defaultSize={30} minSize={20}>
           <PianoRoll />
         </ResizablePanel>

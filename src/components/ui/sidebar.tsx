@@ -57,7 +57,7 @@ const Sidebar = ({ open, setOpen }: { open: boolean; setOpen: React.Dispatch<Rea
     <>
       <motion.nav
         layout
-        className="top-0 z-[1000] fixed border-slate-300 bg-gradient-to-b from-slate-100 via-pink-100 to-blue-100 p-2 border-r h-screen shrink-0"
+        className="top-0 z-[1000] fixed bg-gradient-to-b from-slate-100 via-pink-100 to-blue-100 p-2 border-slate-300 border-r h-screen shrink-0"
         style={{
           width: open ? "225px" : "fit-content",
         }}
@@ -122,13 +122,7 @@ const Sidebar = ({ open, setOpen }: { open: boolean; setOpen: React.Dispatch<Rea
 
           {/* Project Options */}
           <AnimatePresence>
-            <div
-              className="h-[600px] overflow-y-auto"
-              style={{
-                maskImage: "linear-gradient(to bottom, black, transparent)",
-                WebkitMaskImage: "linear-gradient(to bottom, black, transparent)",
-              }}
-            >
+            <div className="h-[920px] overflow-y-auto no-scrollbar">
               {projects.map((project, index) => (
                 <Option
                   key={index}
@@ -148,7 +142,7 @@ const Sidebar = ({ open, setOpen }: { open: boolean; setOpen: React.Dispatch<Rea
       </motion.nav>
       {/* this is just a dummy nav dont worry about it */}
       <nav
-        className="top-0 z-[-1] border-slate-300 bg-red-500 opacity-0 p-2 border-r h-screen shrink-0"
+        className="top-0 z-[-1] bg-red-500 opacity-0 p-2 border-slate-300 border-r h-screen shrink-0"
         style={{
           width: "fit-content",
         }}
@@ -234,7 +228,7 @@ const MemoizedLogo = memo(() => (
 
 const TitleSection = ({ open }: { open: boolean }) => {
   return (
-    <div className="border-slate-300 mb-3 pb-3 border-b">
+    <div className="mb-3 pb-3 border-slate-300 border-b">
       <div className="flex justify-center items-center hover:bg-black/20 rounded-md transition-colors cursor-pointer">
         {open ? (
           <MemoizedLogo />
@@ -272,7 +266,7 @@ const ToggleClose = ({ open, setOpen }: { open: boolean; setOpen: Dispatch<SetSt
         )}
       </div>
       <div className="flex items-center hover:bg-black/20 p-2">
-        <motion.div layout className="place-content-center grid text-lg size-10">
+        <motion.div layout className="place-content-center grid size-10 text-lg">
           <ChevronsRight className={`transition-transform ${open && "rotate-180"}`} />
         </motion.div>
         {open && (

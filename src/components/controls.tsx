@@ -33,6 +33,7 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
   const [isPlaying, setIsPlaying] = useState(false);
   const [slowdown, setSlowdown] = useState(1); // Initial slowdown factor
   const [currentDuration, setCurrentDuration] = useState("00:00");
+  const [isLooping, setIsLooping] = useState(false); // State for looping
   const songFile = useStore((state) => state.songFile); // Access songFile from Zustand store
 
   const formatDuration = (durationInSeconds: number) => {
@@ -83,6 +84,11 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
     setIsPlaying(!isPlaying);
   };
 
+  const toggleLoop = () => {
+    audioRef.current.loop = !audioRef.current.loop;
+    setIsLooping(audioRef.current.loop); // Update state to force re-render
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.code === "KeyP") {
@@ -120,7 +126,7 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
   return (
     <motion.div layout className="flex justify-between items-center w-full h-full">
       <motion.div layout className="flex w-1/3 h-full">
-        <motion.div layout className="relative flex justify-center items-center overflow-hidden aspect-square shrink-0">
+        <motion.div layout className="relative flex justify-center items-center aspect-square overflow-hidden shrink-0">
           <label
             onClick={() => {
               if (audioRef.current) {
@@ -138,9 +144,9 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
                 e.dataTransfer.clearData();
               }
             }}
-            className="relative flex justify-center items-center shadow rounded-md cursor-pointer overflow-hidden aspect-square shrink-0"
+            className="relative flex justify-center items-center shadow rounded-md aspect-square overflow-hidden cursor-pointer shrink-0"
           >
-            <Upload className="z-20 bg-black bg-opacity-50 opacity-0 hover:opacity-100 p-2 text-white transition-opacity size-full" />
+            <Upload className="z-20 bg-black bg-opacity-50 opacity-0 hover:opacity-100 p-2 size-full text-white transition-opacity" />
             {albumArt ? (
               <img src={albumArt} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
             ) : (
@@ -157,7 +163,7 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
 
             <Skeleton className="-z-10 absolute inset-0" />
 
-            <input type="file" accept="audio/*, video/*" onChange={handleSongUpload} className="hidden" />
+            <input type="file" accept="audio/*" onChange={handleSongUpload} className="hidden" />
           </label>
         </motion.div>
         <motion.div layout className="flex flex-col justify-center">
@@ -165,12 +171,12 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
             href={`https://www.google.com/search?q=${encodeURIComponent(metadata?.common.title || "Unknown Title")}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="group drop-shadow line-clamp-1 font-heading text-primary text-sm"
+            className="group drop-shadow font-heading text-primary text-sm line-clamp-1"
           >
             {metadata?.common.title || songFile?.name || "Unknown Title"}
-            <MoveUpRight className="group-hover:visible inline-flex mb-1 ml-1 invisible size-3" />
+            <MoveUpRight className="group-hover:visible invisible inline-flex mb-1 ml-1 size-3" />
           </a>
-          <p className="line-clamp-1 text-muted-foreground text-xs">{metadata?.common.artist || "Unknown Artist"}</p>
+          <p className="text-muted-foreground text-xs line-clamp-1">{metadata?.common.artist || "Unknown Artist"}</p>
         </motion.div>
       </motion.div>
 
@@ -181,8 +187,8 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <motion.button layout aria-label="Loop" className="text-muted-foreground">
-                  <Repeat strokeWidth={2} className="size-7" />
+                <motion.button layout aria-label="Loop" className="text-muted-foreground" onClick={toggleLoop}>
+                  <Repeat strokeWidth={2} className={`size-7 ${isLooping ? "text-emerald-500" : ""}`} />
                 </motion.button>
               </TooltipTrigger>
               <TooltipContent>Loop</TooltipContent>
@@ -228,7 +234,7 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
         <motion.div layout className="flex gap-2 col-start-6 col-end-7">
           <TooltipProvider>
             <Popover>
-              <PopoverTrigger className="flex justify-center items-center border-2 m-0 p-0 border-black rounded-2xl w-16 text-ellipsis text-muted-foreground whitespace-nowrap overflow-hidden">
+              <PopoverTrigger className="flex justify-center items-center m-0 p-0 border-2 border-black rounded-2xl w-16 overflow-hidden text-muted-foreground text-ellipsis whitespace-nowrap">
                 <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <span className="font-[600] text-2xl">{slowdown}x</span>

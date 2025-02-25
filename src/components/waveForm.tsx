@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Stage, Layer, Line, Group, Text, Rect } from "react-konva";
 import useMeasure from "react-use-measure";
-import { KonvaEventObject } from "konva/lib/Node";
+import { KonvaEventListener, KonvaEventObject } from "konva/lib/Node";
 import Konva from "konva";
 import { useStore } from "@/lib/store";
 import { Popover } from "@radix-ui/react-popover";
@@ -9,6 +9,8 @@ import { PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Textarea } from "./ui/textarea";
 import { Trash2Icon } from "lucide-react";
 import { Button } from "./ui/button";
+// @ts-ignore
+import debounce from "lodash.debounce";
 
 type WaveFormProps = {
   audioRef: React.MutableRefObject<HTMLAudioElement>;
@@ -31,6 +33,11 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
   const seekerRef = useRef<Konva.Group>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [currentMarker, setCurrentMarker] = useState<Marker | null>(null);
+  const [selection, setSelection] = useState<{ initialTime: number; finalTime: number } | null>(null);
+  const [isMousePressed, setIsMousePressed] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [popoverMeasureRef, popoverBounds] = useMeasure();
   const [open, setOpen] = useState(false);
@@ -130,16 +137,6 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
     setSongDuration(audioBuffer.duration); // Set the song duration in seconds
   };
 
-  const dragBoundFunc = (pos: { x: number; y: number }) => {
-    // Ensure the x position is not greater than 0
-    const constrainedX = Math.min(pos.x, 18);
-
-    return {
-      x: constrainedX,
-      y: 0, // Restrict y-axis movement
-    };
-  };
-
   const renderGrid = (duration: number) => {
     if (duration <= 0) return []; // Return an empty array if no song is uploaded
 
@@ -197,24 +194,6 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
     }
     return gridLines;
   };
-  const handleZoom = (e: KonvaEventObject<WheelEvent>) => {
-    e.evt.preventDefault();
-    const scaleBy = 1.05;
-    const stage = stageRef.current;
-    const oldScale = zoom;
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-
-    const limitedScale = Math.max(0.5, Math.min(4, newScale));
-
-    // Directly set the scale of the stage
-    stage.scale({ x: limitedScale, y: 1 });
-
-    // Update the zoom state
-    setZoom(limitedScale);
-
-    // Batch draw to apply the changes instantly
-    stage.batchDraw();
-  };
 
   useEffect(() => {
     // Function to continuously sync the seeker with the audio playback
@@ -237,8 +216,6 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
           duration: 0.3, // Duration of the transition
           easing: Konva.Easings.EaseInOut, // Easing function for smooth transition
         });
-
-        // seekerRef.current.getLayer()?.batchDraw(); // Redraw the layer for smooth updates
       }
       // Continuously update seeker position in the next animation frame
       requestAnimationFrame(syncSeekerWithAudio);
@@ -249,41 +226,57 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
 
     // Cleanup: cancel the animation frame when component unmounts or dependencies change
     return () => cancelAnimationFrame(animationFrame);
-  }, [zoom, songDuration, bounds.width]); // Dependencies
+  }, [zoom, songDuration, bounds.width, selection]);
 
-  //this handles dragEnd autoscroll
   useEffect(() => {
-    let autoScrollInterval: NodeJS.Timeout;
-
-    const stage = stageRef.current;
-    const handleDragStart = (e: KonvaEventObject<DragEvent>) => {
-      const duration = 1000 / 60;
-      autoScrollInterval = setInterval(() => {
-        const pos = stage.getPointerPosition();
-        const offset = 10;
-        const isNearRight = pos.x > stage.width() - offset;
-
-        if (isNearRight) {
-          stage.x(stage.x() - 3 * zoom);
-          e.target.x(e.target.x() + 3 * zoom);
+    if (selection) {
+      const handleTimeUpdate = () => {
+        if (audioRef.current.currentTime >= selection.finalTime) {
+          audioRef.current.currentTime = selection.initialTime;
         }
-      }, duration);
-    };
+      };
 
-    const handleDragEnd = () => {
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-      }
-    };
+      audioRef.current.addEventListener("timeupdate", handleTimeUpdate);
 
-    stage.on("dragstart", handleDragStart);
-    stage.on("dragend", handleDragEnd);
+      return () => {
+        audioRef.current.removeEventListener("timeupdate", handleTimeUpdate);
+      };
+    }
+  }, [selection, audioRef]);
 
-    return () => {
-      stage.off("dragstart", handleDragStart);
-      stage.off("dragend", handleDragEnd);
-    };
-  }, []);
+  const mouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    if (e.evt.button !== 0 || !e.evt.ctrlKey) return; // Require Ctrl + Left Click
+    if (selection !== null) {
+      setSelection(null);
+      return;
+    }
+    setIsMousePressed(true);
+    const stage = stageRef.current;
+    const pos = stage.getRelativePointerPosition();
+    const scaledWidth = bounds.width * zoom;
+    let initialTime = (pos.x / scaledWidth) * songDuration;
+    initialTime = Math.max(0, Math.min(initialTime, songDuration)); // Clamp initialTime
+
+    setSelection({ initialTime: initialTime, finalTime: initialTime });
+  };
+
+  const mouseMove = useCallback(
+    debounce((e: KonvaEventObject<MouseEvent>) => {
+      if (!selection || !isMousePressed) return;
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const scaledWidth = bounds.width * zoom;
+      let finalTime = (pos.x / scaledWidth) * songDuration;
+      finalTime = Math.max(0, Math.min(finalTime, songDuration)); // Clamp finalTime
+
+      setSelection((prev) => ({ ...prev!, finalTime: finalTime }));
+    }, 0),
+    [selection]
+  );
+
+  const mouseUp = () => {
+    setIsMousePressed(false); // Stop updating on mouse up
+  };
 
   return (
     <div className="box-border flex flex-col border-2 border-gray-700 rounded-lg w-full h-full">
@@ -294,14 +287,15 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
           ref={stageRef}
           className="bg-white rounded-lg"
           x={18}
-          dragBoundFunc={dragBoundFunc}
-          draggable
+          onMouseDown={mouseDown}
+          onMouseMove={mouseMove}
+          onMouseUp={mouseUp}
         >
           <Layer>
             <Group
               scaleX={zoom}
-              onWheel={handleZoom}
               onClick={(e) => {
+                if (e.evt.ctrlKey || e.evt.shiftKey || e.evt.altKey) return; // Ignore if any modifier key is pressed
                 const stage = e.target.getStage();
                 if (stage) {
                   const pointerPosition = stage.getRelativePointerPosition();
@@ -345,7 +339,24 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
               })}
             </Group>
           </Layer>
-          {/* Marker layer*/}
+
+          <Layer>
+            {selection && (
+              <Rect
+                x={(selection.initialTime / songDuration) * (bounds.width * zoom)}
+                y={0} // Fixed Y position
+                width={(() => {
+                  const initialX = (selection.initialTime / songDuration) * (bounds.width * zoom);
+                  const finalX = (selection.finalTime / songDuration) * (bounds.width * zoom);
+                  return finalX - initialX;
+                })()}
+                height={bounds.height - 1} // Full height
+                fill="rgba(16, 185, 129,0.3) "
+                strokeWidth={2}
+                stroke="rgba(16, 185, 129,1)"
+              />
+            )}
+          </Layer>
 
           <Layer>
             {/* This group is for seeker / scrubber / timeline cursor */}
@@ -434,6 +445,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
               />
             </Group>
           </Layer>
+
           <Layer>
             {markers.map((marker, index) => (
               <Group
@@ -518,7 +530,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
                     removeMarker(currentMarker);
                   }
                 }}
-                className="text-rose-600 transform transition-transform duration-150 cursor-pointer active:scale-75"
+                className="text-rose-600 active:scale-75 transition-transform duration-150 cursor-pointer transform"
               />
             </div>
 

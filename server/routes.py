@@ -20,14 +20,14 @@ async def upload_fft(file: UploadFile = File(...)):
     # Process the audio file
     try:
         # Load the audio file
-        y, sr = librosa.load(io.BytesIO(audio_data), sr=4500)
+        y, sr = librosa.load(io.BytesIO(audio_data), sr=22000)
         
-        y_harmonic, y_percussive = librosa.effects.hpss(y)
+        # y_harmonic, y_percussive = librosa.effects.hpss(y)
 
         # Compute STFT with specific parameters on the audio signal
-        hop_length = 64  # Number of samples between successive frames
+        hop_length = 229  # Number of samples between successive frames
         n_fft = 2048  # Length of the FFT window
-        stft = librosa.stft(y_harmonic, n_fft=n_fft, hop_length=hop_length, window="hann")
+        stft = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
         stft_magnitude = np.abs(stft)
         stft_db = librosa.amplitude_to_db(stft_magnitude, ref=np.max)
         
@@ -39,6 +39,7 @@ async def upload_fft(file: UploadFile = File(...)):
         return stft_data
 
     except Exception as e:
+        print(f"Error: {str(e)}")  # Add a print statement here for logging the error
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
