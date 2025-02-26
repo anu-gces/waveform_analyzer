@@ -15,7 +15,7 @@ export const FFTGraph: React.FC<FFTGraphProps> = ({ audioRef, audioContextRef })
   const songFile = useStore((state) => state.songFile);
   const [fftData, setFFTData] = useState<number[]>([]); // Store FFT data
 
-  const fftSize = 4096 * 4; // fft resolution not related to nyqist at all
+  const fftSize = 4096 * 2; // fft resolution not related to nyqist at all
   const C1 = 32.7;
   const C7 = 2093.0;
 

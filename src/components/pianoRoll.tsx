@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
-import { Minus, Plus, Volume, Volume1, Volume1Icon, Volume2, VolumeX } from "lucide-react";
+import { Minus, Plus, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import { notesDictionary } from "./noteDictionary";
-import { Input } from "./ui/input";
 import { Slider } from "./ui/slider";
+import { useStore } from "@/lib/store";
 
 const generateNotes = (maxOctave: number) => {
   const notes = [];
@@ -31,7 +31,8 @@ const notes = generateNotes(6); // this generates C0 to C6+1 so an extra C note 
 const isBlackKey = (note: string) => note.includes("#");
 
 export const PianoRoll = () => {
-  const [visibleKeys, setVisibleKeys] = useState(2.3263);
+  const visibleKeys = useStore((state) => state.visibleKeys);
+  const setVisibleKeys = useStore((state) => state.setVisibleKeys);
   const [currentNote, setCurrentNote] = useState<string | null>(null);
   const [volume, setVolume] = useState(100);
   const zoomingDivRef = useRef<HTMLDivElement | null>(null);
@@ -103,10 +104,13 @@ export const PianoRoll = () => {
     if (e.ctrlKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -1 : 1;
-      setVisibleKeys((prevVisibleKeys) => {
-        const newVisibleKeys = prevVisibleKeys + delta;
-        return Math.max(2.3263, Math.min(10, newVisibleKeys)); // Limit the zoom between 2 and 10
-      });
+      const newVisibleKeys = visibleKeys + delta;
+
+      // setVisibleKeys((prevVisibleKeys) => {
+      //   const newVisibleKeys = prevVisibleKeys + delta;
+      //   return Math.max(2.3263, Math.min(10, newVisibleKeys)); // Limit the zoom between 2 and 10
+      // });
+      setVisibleKeys(Math.max(2.3263, Math.min(10, newVisibleKeys))); // Limit the zoom between 2.3263 and 10
     }
   };
 
@@ -117,7 +121,7 @@ export const PianoRoll = () => {
   };
 
   return (
-    <div className="relative z-0 bg-black bg-opacity-80 pt-8 rounded-md w-full h-full">
+    <div className="z-0 relative bg-black bg-opacity-80 pt-8 rounded-md w-full h-full">
       <div className="top-2 right-2 absolute flex justify-between gap-1">
         {volume === 0 ? (
           <VolumeX stroke="gray" />
@@ -194,7 +198,7 @@ export const PianoRoll = () => {
             }}
             data-note={note}
           >
-            <span className="text-xs sm:text-xs md:text-xs xl:text-lg lg:text-xs" data-note={note}>
+            <span className="text-xs sm:text-xs md:text-xs lg:text-xs xl:text-lg" data-note={note}>
               {note.startsWith("C") && !note.includes("#") ? note : null}
             </span>
           </button>

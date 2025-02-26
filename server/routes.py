@@ -25,14 +25,12 @@ async def upload_fft(file: UploadFile = File(...)):
         # y_harmonic, y_percussive = librosa.effects.hpss(y)
 
         # Compute STFT with specific parameters on the audio signal
-        hop_length = 229  # Number of samples between successive frames
-        n_fft = 2048  # Length of the FFT window
+        hop_length = 458  # Number of samples between successive frames
+        n_fft = 4096  # Length of the FFT window
         stft = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
         stft_magnitude = np.abs(stft)
         stft_db = librosa.amplitude_to_db(stft_magnitude, ref=np.max)
-        
-        
-        
+
         # Convert the STFT data to a list of lists for JSON serialization
         stft_data = stft_db.tolist()
 

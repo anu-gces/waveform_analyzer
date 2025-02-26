@@ -7,7 +7,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../compone
 import { useStore } from "../lib/store";
 import { FrequencyGraph } from "./frequencyGraph";
 import { useSearch } from "wouter";
-import { FFTGraph } from "./FFTGraph";
 
 const Transcription = () => {
   const setSongFile = useStore((state) => state.setSongFile);
@@ -36,14 +35,15 @@ const Transcription = () => {
         <ResizablePanel defaultSize={40} minSize={20} className="max-w-full">
           <WaveForm audioRef={audioRef} audioContextRef={audioContextRef} />
         </ResizablePanel>
+        {/* <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={30} minSize={20}>
+          <FFTGraph audioRef={audioRef} audioContextRef={audioContextRef} />
+        </ResizablePanel> */}
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={30} minSize={20}>
           <FrequencyGraph audioRef={audioRef} audioContextRef={audioContextRef} />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        {/* <ResizablePanel defaultSize={30} minSize={20}>
-          <FFTGraph audioRef={audioRef} audioContextRef={audioContextRef} />
-        </ResizablePanel> */}
         <ResizablePanel defaultSize={30} minSize={20}>
           <PianoRoll />
         </ResizablePanel>

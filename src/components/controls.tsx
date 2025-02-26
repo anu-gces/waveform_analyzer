@@ -9,7 +9,10 @@ import {
   Rewind,
   SnailIcon,
   Upload,
+  Volume,
+  Volume1,
   Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "./ui/skeleton";
@@ -32,6 +35,7 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
   const [albumArt, setAlbumArt] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [slowdown, setSlowdown] = useState(1); // Initial slowdown factor
+  const [volume, setVolume] = useState(75); // Initial volume
   const [currentDuration, setCurrentDuration] = useState("00:00");
   const [isLooping, setIsLooping] = useState(false); // State for looping
   const songFile = useStore((state) => state.songFile); // Access songFile from Zustand store
@@ -44,7 +48,26 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
 
   const handleSlowdownChange = (value: number[]) => {
     setSlowdown(value[0]);
-    // Add your logic to handle the slowdown effect here
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    const newVolume = value[0];
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume / 100;
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (volume === 0) {
+      return <VolumeX strokeWidth={2} />;
+    } else if (volume > 0 && volume <= 33) {
+      return <Volume strokeWidth={2} />;
+    } else if (volume > 33 && volume <= 66) {
+      return <Volume1 strokeWidth={2} />;
+    } else {
+      return <Volume2 strokeWidth={2} />;
+    }
   };
 
   useEffect(() => {
@@ -264,13 +287,28 @@ export const Controls: React.FC<ControlsProps> = ({ handleSongUpload, audioRef, 
           {currentDuration} /{" "}
           {metadata && metadata.format && metadata.format.duration ? formatDuration(metadata.format.duration) : "00:00"}
         </motion.p>
+        <Popover>
+          <PopoverTrigger asChild>
+            <motion.button layout aria-label="Mute" className="flex disabled:text-muted-foreground">
+              {getVolumeIcon()}
 
-        <motion.button layout aria-label="Mute" className="flex disabled:text-muted-foreground">
-          <Volume2 strokeWidth={2} />
-          <motion.span layout className="w-8 font-medium text-sm">
-            75%
-          </motion.span>
-        </motion.button>
+              <motion.span layout className="w-8 font-medium text-sm">
+                {volume}%
+              </motion.span>
+            </motion.button>
+          </PopoverTrigger>
+          <PopoverContent className="flex gap-2">
+            {getVolumeIcon()}
+            <Slider
+              defaultValue={[volume]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={handleVolumeChange}
+              className="w-32 sm:w-48 md:w-64 lg:w-80 xl:w-64"
+            />
+          </PopoverContent>
+        </Popover>
       </motion.div>
     </motion.div>
   );

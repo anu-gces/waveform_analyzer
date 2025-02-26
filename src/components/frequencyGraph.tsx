@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Stage, Layer, Line, Text } from "react-konva";
+import { Stage, Layer, Line } from "react-konva";
 import useMeasure from "react-use-measure";
 import axios from "axios";
 import { useStore } from "@/lib/store";
-import { AlertCircle, Music } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "./loadingSpinner";
 
 type FrequencyGraphProps = {
@@ -14,11 +14,12 @@ type FrequencyGraphProps = {
 const C1 = 32.7; // Frequency of C1
 const C7 = 2093.0; // Frequency of C7
 const sampleRate = 22000;
-const hopLength = 229;
+const hopLength = 458;
 
 export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioContextRef }) => {
   const [ref, bounds] = useMeasure({ debounce: 100 });
   const songFile = useStore((state) => state.songFile);
+  const zoom = useStore((state) => state.visibleKeys);
   const [FFTData, setFFTData] = useState<number[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,6 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
         const response = await axios.post("http://127.0.0.1:8000/uploadFFT/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        setFFTData([]);
         setFFTData(response.data);
         console.log("bruh", response.data);
       } catch (error) {
@@ -172,13 +172,13 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
   return (
     <div className="box-border flex flex-col border-2 border-gray-700 rounded-lg w-full h-full">
       <div className="relative w-full h-full" ref={ref}>
-        <Stage width={bounds.width} height={bounds.height} className="bg-white rounded-lg">
+        <Stage width={bounds.width} height={bounds.height} scaleX={zoom / 2.3263} className="bg-white rounded-lg">
           <Layer>
             <Line
               points={visualizationPoints}
               stroke="black"
               strokeWidth={2}
-              tension={0.3}
+              tension={0.4}
               lineCap="round"
               lineJoin="round"
             />

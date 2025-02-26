@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Stage, Layer, Line, Group, Text, Rect } from "react-konva";
 import useMeasure from "react-use-measure";
-import { KonvaEventListener, KonvaEventObject } from "konva/lib/Node";
+import { KonvaEventObject } from "konva/lib/Node";
 import Konva from "konva";
 import { useStore } from "@/lib/store";
 import { Popover } from "@radix-ui/react-popover";
 import { PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Textarea } from "./ui/textarea";
-import { Trash2Icon } from "lucide-react";
+import { AlertCircle, Trash2Icon } from "lucide-react";
 import { Button } from "./ui/button";
 // @ts-ignore
 import debounce from "lodash.debounce";
+import { LoadingSpinner } from "./loadingSpinner";
 
 type WaveFormProps = {
   audioRef: React.MutableRefObject<HTMLAudioElement>;
@@ -27,7 +28,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
   const remoteButtonRef = useRef<HTMLButtonElement>(null);
   const [ref, bounds] = useMeasure({ debounce: 100 });
   const waveformRef = useRef<{ min: number; max: number }[]>([]);
-  const [zoom, setZoom] = useState(0.985);
+  const [zoom, _setZoom] = useState(0.985);
   const [songDuration, setSongDuration] = useState(0);
   const stageRef = useRef<any>(null);
   const seekerRef = useRef<Konva.Group>(null);
@@ -39,7 +40,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [popoverMeasureRef, popoverBounds] = useMeasure();
+  const [popoverMeasureRef, _popoverBounds] = useMeasure();
   const [open, setOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
 
@@ -115,26 +116,37 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
     waveformRef: React.MutableRefObject<{ min: number; max: number }[]>,
     setSongDuration: (duration: number) => void
   ) => {
-    const arrayBuffer = await file.arrayBuffer();
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+    setIsLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const channelData = audioBuffer.getChannelData(0); // Get the first channel (only process mono audio)
+      const numberOfChunks = 300; // Number of samples to display
+      const chunkSize = Math.ceil(channelData.length / numberOfChunks);
+
+      const waveformData: { min: number; max: number }[] = [];
+
+      for (let i = 0; i < numberOfChunks; i++) {
+        const chunk = channelData.slice(i * chunkSize, (i + 1) * chunkSize);
+        const min = Math.min(...chunk);
+        const max = Math.max(...chunk);
+        waveformData.push({ min, max });
+      }
+
+      waveformRef.current = waveformData;
+      setSongDuration(audioBuffer.duration); // Set the song duration in seconds
+    } catch (e) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError("An unknown error occurred");
+      }
+    } finally {
+      setIsLoading(false);
     }
-    const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-    const channelData = audioBuffer.getChannelData(0); // Get the first channel (only process mono audio)
-    const numberOfChunks = 300; // Number of samples to display
-    const chunkSize = Math.ceil(channelData.length / numberOfChunks);
-
-    const waveformData: { min: number; max: number }[] = [];
-
-    for (let i = 0; i < numberOfChunks; i++) {
-      const chunk = channelData.slice(i * chunkSize, (i + 1) * chunkSize);
-      const min = Math.min(...chunk);
-      const max = Math.max(...chunk);
-      waveformData.push({ min, max });
-    }
-
-    waveformRef.current = waveformData;
-    setSongDuration(audioBuffer.duration); // Set the song duration in seconds
   };
 
   const renderGrid = (duration: number) => {
@@ -261,7 +273,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
   };
 
   const mouseMove = useCallback(
-    debounce((e: KonvaEventObject<MouseEvent>) => {
+    debounce(() => {
       if (!selection || !isMousePressed) return;
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
@@ -270,7 +282,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
       finalTime = Math.max(0, Math.min(finalTime, songDuration)); // Clamp finalTime
 
       setSelection((prev) => ({ ...prev!, finalTime: finalTime }));
-    }, 0),
+    }, 8),
     [selection]
   );
 
@@ -280,7 +292,44 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
 
   return (
     <div className="box-border flex flex-col border-2 border-gray-700 rounded-lg w-full h-full">
-      <div ref={ref} className="w-full h-full overflow-x-auto">
+      <div ref={ref} className="relative w-full h-full overflow-x-auto">
+        {isLoading && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: bounds.width,
+              height: bounds.height,
+              backgroundColor: "rgba(0, 0, 0, 0.24)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <LoadingSpinner />
+          </div>
+        )}
+        {error && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: bounds.width,
+              height: bounds.height,
+              backgroundColor: "rgba(0, 0, 0, 0.24)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <p className="flex items-center space-x-3 bg-gradient-to-r from-slate-100 via-pink-100 to-blue-100 shadow-lg p-4 rounded-lg text-slate-800">
+              <AlertCircle className="w-6 h-6 text-rose-600" />
+              <span className="font-bold">Yikes! An error occurred: {error} </span>
+            </p>
+          </div>
+        )}
         <Stage
           width={bounds.width}
           height={bounds.height}
