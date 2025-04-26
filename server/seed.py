@@ -1,45 +1,47 @@
--- Create users table
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL, -- Store hashed passwords
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+# filepath: /d:/VISUAL STUDIO CODE PROJECTS/waveformAnalyzer/server/seed.py
 
--- Create projects table
-CREATE TABLE projects (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Foreign key to users
-    name VARCHAR(255) NOT NULL, -- Project name
-    song_url TEXT NOT NULL, -- CDN or local URL for the song file
-    seeker_position FLOAT DEFAULT 0, -- Time elapsed in seconds
-    zoom_factor FLOAT DEFAULT 1.0, -- Zoom level of the time-domain graph
-    fft_data JSONB, -- FFT data as JSON array (can be large)
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+import uuid
+import bcrypt
+from datetime import datetime
+from database import get_db, return_db
 
--- Create markers table
-CREATE TABLE markers (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, -- Foreign key to projects
-    timestamp FLOAT NOT NULL, -- Time in the song the marker is placed (in seconds)
-    note TEXT, -- User-defined note or description for the marker
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
--- Insert a test user (replace with your hash function for production)
-INSERT INTO users (email, password_hash)
-VALUES ('testuser@example.com', 'hashed_password_here');
+def seed_default_user():
+    user_id = str(uuid.uuid4())
+    email = "anu@anu.com"
+    raw_password = "123"
+    password_hash = hash_password(raw_password)
+    created_at = datetime.utcnow()
 
--- Insert a test project for the user
-INSERT INTO projects (user_id, name, song_url, seeker_position, zoom_factor, fft_data)
-VALUES 
-(1, 'Test Project', '/local/path/to/song.mp3', 30.0, 1.5, '[0.1, 0.2, 0.3, ...]');
+    connection = None
+    try:
+        connection = get_db()
+        cursor = connection.cursor()
 
--- Insert a test marker for the project
-INSERT INTO markers (project_id, timestamp, note)
-VALUES 
-(1, 12.5, 'Intro section');
+        # Check if user already exists
+        cursor.execute("SELECT * FROM users WHERE email = %s;", (email,))
+        if cursor.fetchone():
+            print(f"User {email} already exists. Skipping insert.")
+            return
+
+        insert_sql = """
+        INSERT INTO users (id, email, password_hash, is_email_verified, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s);
+        """
+        cursor.execute(insert_sql, (
+            user_id, email, password_hash, True, created_at, created_at
+        ))
+        connection.commit()
+        print(f"Seeded default user: {email}")
+    except Exception as e:
+        print(f"Error seeding default user: {e}")
+    finally:
+        if connection:
+            cursor.close()
+            return_db(connection)
+
+if __name__ == "__main__":
+    seed_default_user()
+    print("Seeding completed.")

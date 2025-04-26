@@ -5,7 +5,6 @@ import { PianoRoll } from "./components/pianoRoll";
 import "./index.css";
 
 import { cn } from "./lib/utils";
-import TimelineGrid from "./components/waveForm";
 
 const RealWaveform = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -45,14 +44,11 @@ const RealWaveform = () => {
       setLoading(true);
       try {
         if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext ||
-            window.webkitAudioContext)();
+          audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         }
 
         const audioContext = audioContextRef.current;
-        audioBufferRef.current = await audioContext.decodeAudioData(
-          arrayBuffer
-        );
+        audioBufferRef.current = await audioContext.decodeAudioData(arrayBuffer);
 
         drawWaveform(audioBufferRef.current);
       } catch (error) {
@@ -142,7 +138,7 @@ const RealWaveform = () => {
 //   );
 // }
 
-export default function App() {
+export default function MyOwnResizablePanel() {
   const resizableRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [waveformHeight, setWaveformHeight] = useState("50%");
@@ -157,12 +153,9 @@ export default function App() {
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    const containerHeight =
-      resizableRef.current?.parentElement?.offsetHeight || 0;
-    const newWaveformHeight =
-      ((e.clientY / containerHeight) * 100).toFixed(2) + "%";
-    const newPianoRollHeight =
-      (100 - parseFloat(newWaveformHeight)).toFixed(2) + "%";
+    const containerHeight = resizableRef.current?.parentElement?.offsetHeight || 0;
+    const newWaveformHeight = ((e.clientY / containerHeight) * 100).toFixed(2) + "%";
+    const newPianoRollHeight = (100 - parseFloat(newWaveformHeight)).toFixed(2) + "%";
     setWaveformHeight(newWaveformHeight);
     setPianoRollHeight(newPianoRollHeight);
   };
@@ -177,37 +170,25 @@ export default function App() {
   return (
     <div className="relative flex flex-col w-screen h-screen">
       <div className="flex flex-col flex-grow w-full overflow-hidden">
-        <div
-          className="w-full"
-          style={{ height: waveformHeight, maxHeight: "90%" }}
-        >
+        <div className="w-full" style={{ height: waveformHeight, maxHeight: "90%" }}>
           <RealWaveform />
         </div>
 
         <div
           ref={resizableRef}
-          className={cn(
-            "border-t-4 border-purple-500 w-full cursor-row-resize transition-all duration-200",
-            {
-              "opacity-100": isResizing,
-              "opacity-0 hover:opacity-100 focus:opacity-100 active:opacity-100":
-                !isResizing,
-            }
-          )}
+          className={cn("border-t-4 border-purple-500 w-full cursor-row-resize transition-all duration-200", {
+            "opacity-100": isResizing,
+            "opacity-0 hover:opacity-100 focus:opacity-100 active:opacity-100": !isResizing,
+          })}
           onMouseDown={handleMouseDown}
         ></div>
 
-        <div
-          className="flex-1 w-full"
-          style={{ height: pianoRollHeight, minHeight: "10%" }}
-        >
+        <div className="flex-1 w-full" style={{ height: pianoRollHeight, minHeight: "10%" }}>
           <PianoRoll />
         </div>
       </div>
 
-      <div className="flex-shrink-0 w-full h-20">
-        <Controls />
-      </div>
+      <div className="flex-shrink-0 w-full h-20">{/* <Controls /> */}</div>
     </div>
   );
 }

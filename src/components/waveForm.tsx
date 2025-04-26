@@ -11,7 +11,7 @@ import { AlertCircle, Trash2Icon } from "lucide-react";
 import { Button } from "./ui/button";
 // @ts-ignore
 import debounce from "lodash.debounce";
-import { LoadingSpinner } from "./loadingSpinner";
+import { LoadingSpinner2 } from "./loadingSpinner";
 
 type WaveFormProps = {
   audioRef: React.MutableRefObject<HTMLAudioElement>;
@@ -307,7 +307,7 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
               alignItems: "center",
             }}
           >
-            <LoadingSpinner />
+            <LoadingSpinner2 />
           </div>
         )}
         {error && (

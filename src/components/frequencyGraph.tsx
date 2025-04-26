@@ -4,7 +4,10 @@ import useMeasure from "react-use-measure";
 import axios from "axios";
 import { useStore } from "@/lib/store";
 import { AlertCircle } from "lucide-react";
-import { LoadingSpinner } from "./loadingSpinner";
+import { LoadingSpinner2 } from "./loadingSpinner";
+//@ts-ignore
+import * as msgpack from "@msgpack/msgpack";
+import Pako from "pako";
 
 type FrequencyGraphProps = {
   audioRef: React.MutableRefObject<HTMLAudioElement | null> | null;
@@ -13,8 +16,8 @@ type FrequencyGraphProps = {
 
 const C1 = 32.7; // Frequency of C1
 const C7 = 2093.0; // Frequency of C7
-const sampleRate = 22000;
-const hopLength = 458;
+const sampleRate = 8192;
+const hopLength = 916;
 
 export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioContextRef }) => {
   const [ref, bounds] = useMeasure({ debounce: 100 });
@@ -26,9 +29,9 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
   const [visualizationPoints, setVisualizationPoints] = useState<number[]>([]);
 
   useEffect(() => {
-    const fetchFFT = async () => {
-      if (!songFile) return;
+    if (!songFile) return;
 
+    const fetchFFT = async () => {
       const formData = new FormData();
       formData.append("file", songFile);
 
@@ -38,16 +41,19 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
       try {
         const response = await axios.post("http://127.0.0.1:8000/uploadFFT/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
+          responseType: "arraybuffer", // Important for MessagePack decoding
         });
-        setFFTData(response.data);
-        console.log("bruh", response.data);
+
+        const decompressedData = Pako.inflate(new Uint8Array(response.data));
+        const decodedData = msgpack.decode(decompressedData) as number[][];
+
+        // const decodedData = response.data as number[][];
+
+        setFFTData(decodedData);
+        console.log("bruh", decodedData);
       } catch (error) {
         console.error("Error fetching FFT data:", error);
-        if (error instanceof Error) {
-          setError(error.message);
-        } else {
-          setError("An unknown error occurred");
-        }
+        setError(error instanceof Error ? error.message : "An unknown error occurred");
       } finally {
         setIsLoading(false);
       }
@@ -177,7 +183,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
             <Line
               points={visualizationPoints}
               stroke="black"
-              strokeWidth={2}
+              strokeWidth={3}
               tension={0.4}
               lineCap="round"
               lineJoin="round"
@@ -199,7 +205,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
               alignItems: "center",
             }}
           >
-            <LoadingSpinner />
+            <LoadingSpinner2 />
           </div>
         )}
         {error && (

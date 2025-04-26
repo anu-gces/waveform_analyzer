@@ -29,3 +29,16 @@ src/components/ui/inkfishTransition.tsx
 
 # Ignore virtual environment
 venv/
+
+
+# Ignore uploaded files
+server/uploads/
+
+# Ignore temporary audio files
+server/temp_audio.wav
+
+# Ignore Python cache
+server/__pycache__/
+
+# ignore environment variables
+server/.env

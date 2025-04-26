@@ -28,7 +28,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type,
           onClick={handleToggleVisibility}
           className="right-0 absolute inset-y-0 flex items-center pr-3 text-muted-foreground"
         >
-          {isPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+          {isPasswordVisible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
       )}
     </div>
