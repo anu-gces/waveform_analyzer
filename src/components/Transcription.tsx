@@ -6,10 +6,10 @@ import { WaveForm } from "../components/waveForm";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/ui/resizable";
 import { useStore } from "../lib/store";
 import { FrequencyGraph } from "./frequencyGraph";
-import defaultSong from "../assets/cats in the cold.mp3";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { refreshAccessToken } from "./Hero";
 
 const Transcription = () => {
   const setSongFile = useStore((state) => state.setSongFile);
@@ -46,6 +46,48 @@ const Transcription = () => {
     },
   });
 
+  const {
+    data: user,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const token = localStorage.getItem("access_token");
+      if (!token) return null;
+
+      const res = await fetch("http://localhost:8000/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        // Token expired, try to refresh
+        const newToken = await refreshAccessToken();
+
+        // Retry with new token
+        const newRes = await fetch("http://localhost:8000/me", {
+          headers: { Authorization: `Bearer ${newToken}` },
+        });
+
+        if (!newRes.ok) throw new Error("Failed after refresh");
+        return newRes.json();
+      }
+
+      if (!res.ok) throw new Error("Request failed");
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    retry: 0,
+    retryDelay: 0,
+  });
+
+  useEffect(() => {
+    // Trigger a refetch when the component mounts or when location changes
+    refetch();
+  }, [refetch]);
+
   useEffect(() => {
     if (!isSuccess || !project) return;
 
@@ -64,7 +106,7 @@ const Transcription = () => {
     };
 
     loadSong();
-  }, [isSuccess, project, setSongFile]);
+  }, [isSuccess, project, setSongFile, projectId]);
 
   return (
     <div className="z-10 relative flex flex-col m-0 p-0 w-full h-full">

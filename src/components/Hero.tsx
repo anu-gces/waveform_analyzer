@@ -124,7 +124,7 @@ const FloatyIconsGenerator = () => {
   });
 };
 
-const refreshAccessToken = async () => {
+export const refreshAccessToken = async () => {
   try {
     const refreshToken = localStorage.getItem("refresh_token");
     if (!refreshToken) throw new Error("No refresh token");

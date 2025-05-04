@@ -5,15 +5,15 @@ import numpy as np
 import io
 import jax.numpy as jnp
 import jax.scipy.signal as jax_signal
+from jax import jit, vmap, lax
 from database import get_db, return_db
 import msgpack
 from starlette.responses import Response
 import zlib
-from scipy.interpolate import CubicSpline
+import jax.scipy.ndimage as ndimage
 from jose import jwt, JWTError
 from uuid import uuid4
 from crud import get_user_by_email
-from starlette.responses import JSONResponse
 import os
 from auth import SECRET_KEY, ALGORITHM
 
@@ -22,78 +22,49 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter()
 
-SAMPLE_RATE = 8192
-HOP_LENGTH = 916
-FFT_WINDOW = 2048
+SAMPLE_RATE = 22050
+HOP_LENGTH = 735
+FFT_WINDOW = 2048*4
 
-def hpss(stft_matrix, kernel_size=31):
-    """Extract only the harmonic component using Librosa's median filter."""
-    harmonic_stft = librosa.decompose.median_filter(np.abs(stft_matrix), size=(1, kernel_size))
+
+@jit
+def extract_harmonic(S, kernel_size=31):
+    pad = kernel_size // 2
+    S_padded = jnp.pad(S, ((0, 0), (pad, pad)), mode="reflect")
+    windows = jnp.stack([S_padded[:, i:i+S.shape[1]] for i in range(kernel_size)], axis=-1)
+    return jnp.median(windows, axis=-1)
+
+@jit
+def extract_harmonic_bruh2(S, kernel_size=31):
+    pad = kernel_size // 2
+    S_padded = jnp.pad(S, ((0, 0), (pad, pad)), mode="reflect")
     
-    harmonic_stft = harmonic_stft * np.exp(1j * np.angle(stft_matrix))  # Keep phase
-    return harmonic_stft
+    # Define a function to process a single row
+    def process_row(row):
+        # Extract sliding windows for this row
+        windows = jnp.stack([row[i:i+S.shape[1]] for i in range(kernel_size)], axis=-1)
+        return jnp.median(windows, axis=-1)
+    
+    # Vectorize over rows using vmap
+    return vmap(process_row)(S_padded)
 
-@router.post("/uploadFFT/")
-async def upload_fft(file: UploadFile = File(...)):
-    # Read the uploaded file as bytes
-    audio_data = await file.read()
 
-    # Print the length of the received audio data in megabytes
-    data_length_mb = len(audio_data) / (1024 * 1024)
-    file_name = file.filename
-    print(f"Received file: {file_name}, size: {data_length_mb:.2f} MB")
+@jit
+def extract_harmonic2(S, kernel_size=31):
+    pad = kernel_size // 2
+    S_padded = jnp.pad(S, ((0, 0), (pad, pad)), mode="reflect")
+    
+    # Efficient window stacking using vectorization with vmap
+    def get_windowed_data(row, idx):
+        return row[idx:idx + kernel_size]
+    
+    # Vectorize the function over the second dimension
+    windows = vmap(lambda row: vmap(lambda idx: get_windowed_data(row, idx))(jnp.arange(S.shape[1])))(S_padded)
+    
+    # Now, compute the median along the kernel dimension (axis=-1)
+    return jnp.median(windows, axis=-1)
 
-    # Process the audio file
-    try:
-        # Load the audio file
-        y, sr = librosa.load(io.BytesIO(audio_data), sr=SAMPLE_RATE)
-        
-        # y_preemphasized = librosa.effects.preemphasis(y)
-        # y_harmonic, _ = librosa.effects.hpss(y_preemphasized)  # not using percussive component
 
-        stft = librosa.stft(y, n_fft=FFT_WINDOW, hop_length=HOP_LENGTH, window="hann")
-        stft_magnitude = np.abs(stft)
-        stft_db = librosa.amplitude_to_db(stft_magnitude, ref=np.max)
-        stft_db = stft_db.astype(np.float16)  # Convert to float16
-
-        # Create a frequency bin array for interpolation
-        frequencies = librosa.fft_frequencies(sr=SAMPLE_RATE, n_fft=FFT_WINDOW)
-
-        # Define the frequency range from C5 to C7 (or any specific bins you want to interpolate)
-        c5_freq = librosa.note_to_hz('C5')  # C5 frequency in Hz
-        c7_freq = librosa.note_to_hz('C7')  # C7 frequency in Hz
-
-        # Find the frequency bin indices that correspond to C5 and C7
-        c5_idx = np.argmin(np.abs(frequencies - c5_freq))
-        c7_idx = np.argmin(np.abs(frequencies - c7_freq))
-
-        # Extract the part of the STFT that we want to interpolate (between C5 and C7)
-        stft_db_range = stft_db[c5_idx:c7_idx]
-
-        # Create an array of the indices to interpolate
-        freq_range = np.linspace(c5_idx, c7_idx - 1, stft_db_range.shape[0])
-
-        # Apply cubic spline interpolation
-        cubic_spline = CubicSpline(freq_range, stft_db_range, axis=0)
-        
-        # Interpolate the data between C5 and C7
-        stft_db_interpolated = cubic_spline(np.arange(c5_idx, c7_idx))
-
-        # Replace the interpolated values back into the original STFT data
-        stft_db[c5_idx:c7_idx] = stft_db_interpolated
-
-        # Convert the STFT data to a list of lists for JSON serialization
-        stft_data = stft_db.tolist()
-        
-        # Convert STFT to MessagePack
-        packed_data = msgpack.packb(stft_data, use_bin_type=True)
-        compressed_data = zlib.compress(packed_data)
-        return Response(content=compressed_data, media_type="application/x-msgpack")
-  
-
-    except Exception as e:
-        print(f"Error: {str(e)}")  # Add a print statement here for logging the error
-        raise HTTPException(status_code=500, detail=str(e))
     
 
 @router.post("/uploadFFTjax/")
@@ -110,22 +81,25 @@ async def upload_fft(file: UploadFile = File(...)):
     try:
         # Load the audio file
         y, sr = librosa.load(io.BytesIO(audio_data), sr=SAMPLE_RATE)
+    
         
-        
-        y_harmonic_jax = jnp.array(y)
+        y= jnp.array(y)
 
         # Compute STFT using JAX
         f, t, Zxx = jax_signal.stft(
-            y_harmonic_jax, 
+            y, 
             fs=SAMPLE_RATE, 
             nperseg=FFT_WINDOW, 
             noverlap=FFT_WINDOW - HOP_LENGTH, 
             window="hann", 
             boundary=None
         )
+        
+        
 
         # Compute magnitude and convert to dB
-        stft_magnitude = jnp.abs(Zxx)  # Magnitude spectrogram
+        stft_magnitude = (jnp.abs(Zxx))  # Magnitude spectrogram
+        
         stft_db = librosa.amplitude_to_db(np.array(stft_magnitude), ref=np.max)  # Convert to dB
         stft_db = stft_db.astype(np.float16)  # Convert to float16
 
@@ -140,30 +114,7 @@ async def upload_fft(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error: {str(e)}")  # Add a print statement here for logging the error
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/")
-@router.get("/helloworld")
-async def read_helloworld():
-    return {"message": "Hello, World!"}
-
-@router.get("/testDB")
-def test_db_connection():
-    db = None
-    try:
-        db = get_db()
-        with db.cursor() as cursor:
-            cursor.execute("SELECT 1")
-            result = cursor.fetchone()
-            if result:
-                return {"message": "Database connection successful"}
-            else:
-                raise HTTPException(status_code=500, detail="Database connection failed")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if db:
-            return_db(db)
-            
+     
             
 @router.post("/create-new-project")
 async def create_new_project(

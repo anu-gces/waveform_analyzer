@@ -16,8 +16,8 @@ type FrequencyGraphProps = {
 
 const C1 = 32.7; // Frequency of C1
 const C7 = 2093.0; // Frequency of C7
-const sampleRate = 8192;
-const hopLength = 916;
+const sampleRate = 22050;
+const hopLength = 735;
 
 export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioContextRef }) => {
   const [ref, bounds] = useMeasure({ debounce: 100 });
@@ -39,7 +39,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
       setError(null);
 
       try {
-        const response = await axios.post("http://127.0.0.1:8000/uploadFFT/", formData, {
+        const response = await axios.post("http://127.0.0.1:8000/uploadFFTjax/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
           responseType: "arraybuffer", // Important for MessagePack decoding
         });
@@ -108,8 +108,8 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
   };
 
   const drawFrame = (frameData: number[]) => {
-    const smoothedData = gaussianBlur(frameData, 1.5);
-    const maxAmplitude = Math.max(...smoothedData);
+    // const smoothedData = gaussianBlur(frameData, 1.5);
+    const maxAmplitude = Math.max(...frameData);
     // const maxAmplitude = Math.max(...frameData); // Find the maximum amplitude in the frame data
 
     const points = frameData.flatMap((amplitude, frequencyBinIndex) => {
@@ -126,6 +126,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({ audioRef, audioC
       const exaggeratedAmplitude = transformedAmplitude * maxAmplitude;
 
       const yCoordinate = bounds.height - ((exaggeratedAmplitude + 80) / 80) * (bounds.height * 0.85);
+      // const yCoordinate = bounds.height - exaggeratedAmplitude * (bounds.height * 0.85);
 
       return [xCoordinate, yCoordinate];
     });
