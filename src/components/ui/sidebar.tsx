@@ -253,6 +253,35 @@ const Option = ({
 }) => {
   const [showDialog, setShowDialog] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const res = await fetch(`http://localhost:8000/project/${projectId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token") || ""}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to delete project");
+      }
+
+      return await res.json();
+    },
+    onSuccess: (_, projectId) => {
+      toast.success("Project deleted successfully", {
+        description: `Project ID: ${projectId}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (err) => {
+      toast.error((err as Error).message || "Failed to delete project");
+    },
+  });
+
   return (
     <>
       <motion.button
@@ -301,7 +330,7 @@ const Option = ({
             <DialogTitle>Are you sure?</DialogTitle>
           </DialogHeader>
           <p className="text-slate-500 text-sm">
-            This will permanently delete <span className="font-semibold">{title}</span>.
+            This will permanently delete <span className="font-semibold">{title}</span>. Id: {projectId}
           </p>
           <DialogFooter className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setShowDialog(false)}>
@@ -312,7 +341,7 @@ const Option = ({
               onClick={() => {
                 console.log(`Confirmed delete: ${title}`);
                 setShowDialog(false);
-                // actual delete logic
+                deleteProjectMutation.mutate(projectId); // <-- Actual delete logic
               }}
             >
               Delete

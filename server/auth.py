@@ -1,7 +1,6 @@
 # filepath: /d:/VISUAL STUDIO CODE PROJECTS/waveformAnalyzer/server/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import bcrypt
@@ -9,6 +8,9 @@ import uuid
 from crud import get_user_by_email
 import os
 from dotenv import load_dotenv
+from mailhelper import send_email
+from crud import get_user_by_email, insert_user, verify_user_email
+from uuid import uuid4
 
 router = APIRouter()
 
@@ -115,6 +117,52 @@ def refresh_token(request: Request):
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    
+@router.post("/signup")
+def signup(payload: SignupRequest):
+    existing_user = get_user_by_email(payload.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed_pw = bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt()).decode()
+    verification_token = str(uuid4())
+
+    insert_user({
+        "id": str(uuid4()),
+        "email": payload.email,
+        "password_hash": hashed_pw,
+        "email_verification_token": verification_token
+    })
+
+    verify_link = f"http://localhost:5173/verify-email?token={verification_token}"
+    subject = "Verify your email address"
+    body = f"""
+Hi there,
+
+Thanks for signing up! Please verify your email by clicking the link below:
+
+{verify_link}
+
+If you did not sign up, you can safely ignore this email.
+
+Best regards,
+pitchForge Team
+"""
+    send_email(payload.email, subject, body)
+
+    return {"message": "Signup successful. Please check your email to verify your account."}
+
+@router.get("/verify-email")
+def verify_email(token: str):
+    print("Verifying email with token:", token)
+    success = verify_user_email(token)
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    return {"message": "Email verified successfully."}
 
 @router.get("/me", response_model=UserOut)
 def read_users_me(request: Request):
@@ -133,3 +181,4 @@ def read_users_me(request: Request):
         return {"id": user["id"], "email": user["email"]}
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    

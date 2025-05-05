@@ -1,5 +1,5 @@
 # filepath: /d:/VISUAL STUDIO CODE PROJECTS/waveformAnalyzer/server/routes.py
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Request
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Request, Depends, Body
 import librosa
 import numpy as np
 import io
@@ -16,6 +16,15 @@ from uuid import uuid4
 from crud import get_user_by_email
 import os
 from auth import SECRET_KEY, ALGORITHM
+from crud import (
+    create_marker,
+    get_markers_by_project,
+    update_marker,
+    delete_marker,
+)
+from pydantic import BaseModel
+from uuid import UUID
+import traceback
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -233,3 +242,103 @@ async def get_project(project_id: str, request: Request):
         return_db(connection)
 
     return project
+
+
+@router.delete("/project/{project_id}")
+async def delete_project(project_id: str, request: Request):
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    try:
+        access_token = token.split(" ")[1]
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_id = user["id"]
+
+    connection = get_db()
+    cursor = connection.cursor()
+    try:
+        # Check if the project exists and belongs to the user
+        cursor.execute("SELECT song_url FROM projects WHERE id = %s AND user_id = %s", (project_id, user_id))
+        result = cursor.fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="Project not found or unauthorized")
+
+        song_url = result[0]
+        file_path = os.path.join(".", song_url.lstrip("/"))  # Assuming relative path like /uploads/filename
+
+        # Delete the project from the DB
+        cursor.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+        connection.commit()
+
+        # Delete the file, if it exists
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    except Exception as e:
+        print("Error deleting project:", e)
+        raise HTTPException(status_code=500, detail="Database or file deletion error")
+    finally:
+        cursor.close()
+        return_db(connection)
+
+    return {"detail": "Project deleted successfully"}
+
+class MarkerCreateRequest(BaseModel):
+    project_id: UUID
+    note: str
+    timestamp: float
+
+class MarkerUpdateRequest(BaseModel):
+    note: str
+    timestamp: float
+
+
+@router.post("/markers", tags=["Markers"])
+def create_marker_route(payload: MarkerCreateRequest):
+    try:
+        print(f"Creating marker for project {payload.project_id} at {payload.timestamp} with note: {payload.note}")
+        return create_marker(payload.project_id, payload.note, payload.timestamp)
+    except Exception as e:
+        print("Error while creating marker:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+
+
+@router.get("/projects/{project_id}/markers", tags=["Markers"])
+def get_markers_route(project_id: UUID):
+    try:
+        return get_markers_by_project(project_id)
+    except Exception as e:
+        print(f"Error while fetching markers for project {project_id}: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@router.put("/markers/{marker_id}", tags=["Markers"])
+def update_marker_route(marker_id: UUID, payload: MarkerUpdateRequest):
+    try:
+        return update_marker(marker_id, payload.note, payload.timestamp)
+    except Exception as e:
+        print(f"Error while updating marker {marker_id}: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@router.delete("/markers/{marker_id}", tags=["Markers"])
+def delete_marker_route(marker_id: UUID):
+    try:
+        return delete_marker(marker_id)
+    except Exception as e:
+        print(f"Error while deleting marker {marker_id}: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

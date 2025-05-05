@@ -7,7 +7,7 @@ import Hero from "./components/Hero";
 import Sidebar from "./components/ui/sidebar";
 import { AnimatePresence, motion } from "framer-motion";
 import Transcription from "@/components/Transcription";
-import Login, { Signup } from "./components/Auth";
+import Login, { Signup, VerifyEmail } from "./components/Auth";
 import { Toaster } from "sonner";
 import CreateNewProject from "./components/CreateNewProject";
 import SettingsPage from "./components/settings";
@@ -119,6 +119,7 @@ const App = () => {
             <Switch>
               <Route path="/" component={Hero} />
               <Route path="/Home" component={Hero} />
+              <Route path="/verify-email" component={VerifyEmail} />
 
               <Route path="/auth" nest>
                 <motion.div

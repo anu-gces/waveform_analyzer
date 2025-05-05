@@ -12,6 +12,10 @@ import { Button } from "./ui/button";
 // @ts-ignore
 import debounce from "lodash.debounce";
 import { LoadingSpinner2 } from "./loadingSpinner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { useRoute } from "wouter";
+import { toast } from "sonner";
 
 type WaveFormProps = {
   audioRef: React.MutableRefObject<HTMLAudioElement>;
@@ -44,6 +48,10 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
   const [open, setOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
 
+  const [match, params] = useRoute("/transcription/:id");
+  const projectId = params!.id;
+  const queryClient = useQueryClient();
+
   const songFile = useStore((state) => state.songFile); // Access songFile from Zustand store
 
   const handleMarkerClick = (marker: Marker) => {
@@ -61,6 +69,11 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
     }
   };
 
+  const { data } = useQuery({
+    queryKey: ["markers", projectId],
+    queryFn: () => axios.get(`http://localhost:8000/projects/${projectId}/markers`).then((res) => res.data),
+  });
+
   const handleFileChange = async (file: File) => {
     const objectUrl = URL.createObjectURL(file);
     audioRef.current.src = objectUrl;
@@ -73,8 +86,43 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
       URL.revokeObjectURL(objectUrl);
     };
 
-    setMarkers([]);
+    console.log("Markers data:", data);
+
+    setMarkers(data ?? []);
   };
+
+  const createMarker = useMutation({
+    mutationFn: async ({ project_id, note, timestamp }: { project_id: string; note: string; timestamp: number }) => {
+      const res = await axios.post("http://localhost:8000/markers", {
+        project_id: project_id,
+        note: note,
+        timestamp,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Marker created successfully!");
+    },
+  });
+
+  const editMarker = useMutation({
+    mutationFn: async ({ markerId, note, timestamp }: { markerId: string; note: string; timestamp: number }) => {
+      // Send PUT request to update the marker
+      const res = await axios.put(`http://localhost:8000/markers/${markerId}`, {
+        note,
+        timestamp,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      // Invalidate queries to update markers after edit
+      // queryClient.invalidateQueries({ queryKey: ["markers", projectId] });
+    },
+    onError: (error) => {
+      console.error("Error updating marker:", error);
+      // You can also show a UI alert or toast if necessary
+    },
+  });
 
   const addMarker = () => {
     if (seekerRef.current && audioRef.current) {
@@ -82,6 +130,11 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
       const seekerPosition = seekerRef.current.x();
       const currentTime = audioRef.current.currentTime;
       setMarkers((prevMarkers) => [...prevMarkers, { marker: seekerPosition, notes: "", timestamp: currentTime }]);
+      createMarker.mutate({
+        project_id: projectId,
+        note: "",
+        timestamp: currentTime,
+      });
     }
   };
 
@@ -618,6 +671,11 @@ export const WaveForm = ({ audioRef, audioContextRef }: WaveFormProps) => {
                     }
                     setOpen(false);
                     setCurrentMarker(null);
+                    // editMarker.mutate({
+                    //   markerId: currentMarker.marker, // Use the marker's ID (you can store it as part of the marker object)
+                    //   note: currentMarker.notes, // New note (text input)
+                    //   timestamp: currentMarker.timestamp, // New timestamp
+                    // });
                   }
                 }}
               >
